@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, dialog, shell, session } = require('electro
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
+const https = require('https');
 
 let mainWindow;
 
@@ -24,6 +25,43 @@ function createWindow() {
 
   mainWindow.loadFile('index.html');
   mainWindow.setMenuBarVisibility(false);
+  // Check for updates on launch
+  setTimeout(checkForUpdates, 3000);
+}
+
+
+// ── AUTO UPDATER ──
+const GITHUB_RAW = 'https://raw.githubusercontent.com/AaronPyper/complyfirst-updates/main/';
+const FILES_TO_UPDATE = ['index.html', 'main.js'];
+
+function fetchRaw(url) {
+  return new Promise((resolve, reject) => {
+    https.get(url, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => resolve(data));
+    }).on('error', reject);
+  });
+}
+
+async function checkForUpdates() {
+  try {
+    for (const file of FILES_TO_UPDATE) {
+      const remoteContent = await fetchRaw(GITHUB_RAW + file + '?t=' + Date.now());
+      const localPath = path.join(__dirname, file);
+      const localContent = fs.existsSync(localPath) ? fs.readFileSync(localPath, 'utf8') : '';
+      if (remoteContent !== localContent && remoteContent.length > 100) {
+        fs.writeFileSync(localPath, remoteContent, 'utf8');
+        console.log('[AutoUpdate] Updated:', file);
+      }
+    }
+    // If main.js was updated, notify user to restart
+    if (mainWindow) {
+      mainWindow.webContents.send('update-complete');
+    }
+  } catch(e) {
+    console.log('[AutoUpdate] No update available or offline:', e.message);
+  }
 }
 
 app.whenReady().then(() => {
@@ -128,7 +166,7 @@ ipcMain.handle('call-ollama', async (event, { system, userMessage, model }) => {
       model: model || 'llama3.2',
       prompt: system + '\n\nGenerate a document for: ' + userMessage + '\n\nDocument:',
       stream: false,
-      options: { temperature: 0.7, num_predict: 1500, num_ctx: 4096 }
+      options: { temperature: 0.7, num_predict: 3000, num_ctx: 8192 }
     });
 
     const options = {
