@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ComplyFirst</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --navy:#182457;--navy-mid:#1e2e5a;--navy-dark:#0f1637;
+  --teal:#41CFBA;--purple:#8F43E2;
+  --border:#dde3f0;--muted:#6b7a99;
+  --surface:#f4f6fb;--white:#ffffff;
+  --r:9px;--r-lg:13px;--danger:#c0392b;--success:#0d7a5f;
+}
+html,body{height:100%;overflow:hidden}
+body{font-family:'Inter',-apple-system,sans-serif;background:var(--surface);color:var(--navy);display:flex;flex-direction:column}
+
+.titlebar{background:#0f1637;height:42px;display:flex;align-items:center;padding:0 16px 0 80px;-webkit-app-region:drag;flex-shrink:0;gap:12px}
+.tb-logo{display:flex;align-items:center;gap:9px;-webkit-app-region:no-drag}
+.tb-wordmark{font-size:14px;font-weight:700;color:rgba(255,255,255,0.9)}
+.tb-wordmark em{font-style:italic;font-family:'Playfair Display',serif}
+.tb-sep{width:1px;height:14px;background:rgba(255,255,255,0.15)}
+.tb-title{font-size:12px;color:rgba(255,255,255,0.4)}
+.tb-status{margin-left:auto;-webkit-app-region:no-drag;display:flex;align-items:center;gap:6px;padding:4px 12px;border-radius:6px;font-size:11px;font-weight:500}
+.tb-status.ok{background:rgba(65,207,186,0.15);color:#41CFBA}
+.tb-status.err{background:rgba(192,57,43,0.15);color:#e74c3c}
+.tb-status.checking{background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.5)}
+.tb-dot{width:7px;height:7px;border-radius:50%}
+.ok .tb-dot{background:#41CFBA}
+.err .tb-dot{background:#e74c3c}
+.checking .tb-dot{background:rgba(255,255,255,0.4)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+.err .tb-dot,.checking .tb-dot{animation:pulse 1s infinite}
+
+.setup-screen{position:fixed;inset:0;background:var(--navy);z-index:9999;display:flex;align-items:center;justify-content:center}
+.setup-screen.hidden{display:none}
+.setup-card{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:18px;padding:40px 44px;width:480px;max-width:90vw}
+.setup-logo{display:flex;align-items:center;gap:12px;margin-bottom:24px}
+.setup-wordmark{font-size:20px;font-weight:700;color:#fff}
+.setup-wordmark em{font-style:italic;font-family:'Playfair Display',serif}
+.setup-card h2{font-size:20px;font-weight:700;color:#fff;margin-bottom:8px}
+.setup-card p{font-size:13px;color:rgba(255,255,255,0.55);line-height:1.7;margin-bottom:20px}
+.setup-step{display:flex;gap:14px;align-items:flex-start;margin-bottom:12px;padding:12px 14px;background:rgba(255,255,255,0.04);border-radius:10px;border:1px solid rgba(255,255,255,0.08)}
+.step-num{width:26px;height:26px;border-radius:50%;background:#41CFBA;color:#182457;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.step-title{font-size:13px;font-weight:600;color:#fff;margin-bottom:3px}
+.step-desc{font-size:12px;color:rgba(255,255,255,0.45);line-height:1.5}
+.step-code{font-family:monospace;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);padding:3px 8px;border-radius:5px;color:#41CFBA;font-size:12px;margin-top:5px;display:inline-block}
+.model-select{width:100%;padding:9px 12px;border:1px solid rgba(255,255,255,0.15);border-radius:8px;background:rgba(255,255,255,0.06);color:#fff;font-size:13px;font-family:'Inter',sans-serif;outline:none;margin-top:6px}
+.model-select option{background:#182457;color:#fff}
+.connect-btn{width:100%;padding:14px;background:#41CFBA;color:#182457;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;margin-top:18px;font-family:'Inter',sans-serif;transition:all 0.15s}
+.connect-btn:hover{background:#35b8a5}
+.skip-btn{width:100%;padding:9px;background:transparent;border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.4);border-radius:10px;font-size:12px;cursor:pointer;margin-top:8px;font-family:'Inter',sans-serif}
+.diag{margin-top:12px;padding:10px 14px;border-radius:8px;font-size:12px;line-height:1.7;border:1px solid;display:none}
+.diag.err{background:rgba(192,57,43,0.12);border-color:rgba(192,57,43,0.3);color:#ff8a7a}
+.diag.ok{background:rgba(65,207,186,0.1);border-color:rgba(65,207,186,0.3);color:#41CFBA}
+.dbg{margin-top:10px;padding:10px;border-radius:8px;background:rgba(0,0,0,0.4);font-family:monospace;font-size:11px;color:#41CFBA;line-height:1.8;max-height:140px;overflow-y:auto;display:none}
+
+.app-shell{display:flex;flex:1;overflow:hidden}
+.sidebar{width:210px;background:var(--navy);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto}
+.sb-brand{padding:18px 16px 14px;border-bottom:1px solid rgba(255,255,255,0.08)}
+.sb-logo-row{display:flex;align-items:center;gap:10px;margin-bottom:3px}
+.sb-wordmark{font-size:15px;font-weight:700;color:#fff}
+.sb-wordmark em{font-style:italic;font-family:'Playfair Display',serif}
+.sb-url{font-size:10px;color:rgba(255,255,255,0.3);letter-spacing:1.5px;text-transform:uppercase;margin-top:2px}
+.sb-section{padding:14px 12px 6px}
+.sb-label{font-size:9px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:rgba(255,255,255,0.28);margin-bottom:7px;padding:0 4px}
+.sb-btn{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:7px;font-size:12px;font-weight:500;color:rgba(255,255,255,0.6);cursor:pointer;transition:all 0.12s;margin-bottom:2px;border:none;background:none;width:100%;text-align:left;font-family:'Inter',sans-serif}
+.sb-btn:hover{background:rgba(255,255,255,0.08);color:#fff}
+.sb-stats{margin-top:auto;padding:12px;border-top:1px solid rgba(255,255,255,0.08)}
+.sb-stat{display:flex;justify-content:space-between;align-items:center;padding:3px 0}
+.sb-stat-lbl{font-size:10px;color:rgba(255,255,255,0.3)}
+.sb-stat-val{font-size:11px;font-weight:600;color:rgba(255,255,255,0.65)}
+
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.topbar{background:#fff;border-bottom:1px solid var(--border);padding:12px 22px;flex-shrink:0}
+.search-row{display:flex;gap:10px;align-items:center}
+.search-wrap{flex:1;position:relative}
+.search-icon{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none}
+.search-input{width:100%;padding:10px 12px 10px 36px;border:1.5px solid var(--border);border-radius:var(--r);font-size:13.5px;font-family:'Inter',sans-serif;color:var(--navy);background:var(--surface);outline:none;transition:border-color 0.15s,background 0.15s}
+.search-input:focus{border-color:var(--navy);background:#fff}
+.search-input::placeholder{color:#b0b8cc}
+.gen-btn{padding:10px 18px;background:var(--navy);color:#fff;border:none;border-radius:var(--r);font-size:13px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;white-space:nowrap;transition:background 0.15s}
+.gen-btn:hover{background:var(--navy-mid)}
+.gen-btn:disabled{opacity:0.4;cursor:not-allowed}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
+.chip{padding:4px 10px;border-radius:20px;background:#eef1fa;color:var(--navy);border:1px solid #d5dbed;font-size:11px;font-weight:500;cursor:pointer;white-space:nowrap;transition:all 0.12s;font-family:'Inter',sans-serif}
+.chip:hover{background:var(--navy);color:#fff;border-color:var(--navy)}
+
+.content{flex:1;display:grid;grid-template-columns:1fr 230px;overflow:hidden}
+.content-left{overflow-y:auto;padding:18px 18px 18px 22px;display:flex;flex-direction:column;gap:14px}
+.content-right{border-left:1px solid var(--border);overflow-y:auto;padding:14px;background:#fff;display:flex;flex-direction:column;gap:12px}
+
+.det-card{background:#fff;border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden}
+.card-head{padding:10px 15px;background:var(--surface);border-bottom:1px solid var(--border);font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted)}
+.fields-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;padding:12px 15px}
+.field-group{display:flex;flex-direction:column;gap:3px}
+.field-label{font-size:10px;font-weight:600;color:var(--muted);letter-spacing:0.5px;text-transform:uppercase}
+.field-input{padding:7px 9px;border:1.5px solid var(--border);border-radius:7px;font-size:12.5px;font-family:'Inter',sans-serif;color:var(--navy);background:var(--surface);outline:none;transition:border-color 0.15s}
+.field-input:focus{border-color:var(--navy);background:#fff}
+.field-input::placeholder{color:#b8bed0}
+
+.cat-section{display:flex;flex-direction:column;gap:9px}
+.sec-label{font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:8px}
+.sec-label::after{content:'';flex:1;height:1px;background:var(--border)}
+.cat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px}
+.cat-card{background:#fff;border:1px solid var(--border);border-radius:var(--r-lg);padding:13px 9px;cursor:pointer;text-align:center;transition:all 0.13s}
+.cat-card:hover{border-color:var(--navy);box-shadow:0 3px 12px rgba(26,40,85,0.1);transform:translateY(-1px)}
+.cat-icon{font-size:19px;margin-bottom:6px}
+.cat-name{font-size:11px;font-weight:600;color:var(--navy);line-height:1.3}
+
+.out-card{background:#fff;border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden}
+.out-header{padding:11px 15px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.out-title-row{display:flex;align-items:center;gap:7px}
+.out-title{font-size:13px;font-weight:600;color:var(--navy)}
+.badge{padding:2px 8px;border-radius:20px;font-size:9px;font-weight:700;letter-spacing:0.8px;text-transform:uppercase}
+.badge-navy{background:var(--navy);color:#fff}
+.badge-green{background:#e6f5f1;color:var(--success);border:1px solid #b5ddd5}
+.out-acts{display:flex;gap:6px}
+.act-btn{padding:5px 10px;border:1px solid var(--border);border-radius:6px;background:#fff;font-size:11px;font-weight:500;color:var(--muted);cursor:pointer;display:flex;align-items:center;gap:4px;transition:all 0.12s;font-family:'Inter',sans-serif}
+.act-btn:hover{background:var(--surface);color:var(--navy)}
+.act-btn.primary{background:var(--navy);color:#fff;border-color:var(--navy)}
+.act-btn:disabled{opacity:0.4;cursor:not-allowed}
+.out-body{padding:22px 26px;overflow-y:auto;max-height:400px}
+
+.doc-cover{background:var(--navy);border-radius:8px;padding:20px 22px 18px;margin-bottom:20px;overflow:hidden}
+.doc-top-meta{display:flex;align-items:center;justify-content:space-between;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,0.3);margin-bottom:14px}
+.doc-top-meta .line{flex:1;height:1px;background:rgba(255,255,255,0.12);margin:0 10px}
+.doc-logo-row{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.doc-wordmark{font-size:13px;font-weight:700;color:#fff}
+.doc-wordmark em{font-style:italic;font-family:'Playfair Display',serif}
+.doc-welcome{font-size:9px;letter-spacing:2.5px;text-transform:uppercase;color:rgba(255,255,255,0.38);margin-bottom:4px}
+.doc-main-title{font-family:'Playfair Display',serif;font-size:20px;font-weight:700;color:#fff;line-height:1.2;margin-bottom:11px}
+.doc-name-tag{display:inline-block;padding:4px 13px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:#fff;font-size:12px;font-weight:600;border-radius:4px}
+.doc-bottom-meta{display:flex;align-items:center;justify-content:space-between;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,0.22);margin-top:14px;padding-top:11px;border-top:1px solid rgba(255,255,255,0.1)}
+.doc-bottom-meta .line{flex:1;height:1px;background:rgba(255,255,255,0.1);margin:0 10px}
+.doc-body{font-family:'Inter',sans-serif}
+.doc-sec-head{font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--navy);padding-bottom:5px;border-bottom:2px solid var(--navy);margin:16px 0 8px}
+.doc-body p{font-size:13px;line-height:1.75;color:#2a3350;margin-bottom:7px}
+.doc-check-row{display:flex;align-items:flex-start;gap:7px;margin:4px 0;font-size:13px;color:#2a3350}
+.doc-checkbox{width:13px;height:13px;border:2px solid #b0b8cc;border-radius:3px;flex-shrink:0;margin-top:2px}
+.doc-table{width:100%;border-collapse:collapse;margin:9px 0;font-size:12px}
+.doc-table th{background:var(--navy);color:#fff;padding:6px 9px;text-align:left;font-weight:600}
+.doc-table td{padding:6px 9px;border-bottom:1px solid var(--border);color:#2a3350}
+.doc-table tr:nth-child(even) td{background:#f4f6fb}
+.doc-sign-area{display:flex;gap:22px;margin-top:20px;padding-top:14px;border-top:1px solid var(--border)}
+.doc-sign-block{flex:1}
+.doc-sign-line{border-bottom:1.5px solid var(--muted);margin-bottom:4px;height:24px}
+.doc-sign-label{font-size:10px;color:var(--muted)}
+.doc-confidential{text-align:center;margin-top:20px;padding-top:10px;border-top:1px solid var(--border);font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--muted)}
+
+.loading-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:44px 20px;gap:11px}
+.spinner{width:28px;height:28px;border:3px solid var(--border);border-top-color:var(--navy);border-radius:50%;animation:spin 0.7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-msg{font-size:12px;color:var(--muted);font-weight:500}
+.loading-sub{font-size:11px;color:#b0b8cc;text-align:center}
+
+.empty-state{text-align:center;padding:38px 20px}
+.empty-icon{font-size:30px;opacity:0.2;margin-bottom:9px}
+.empty-title{font-size:14px;font-weight:600;color:var(--navy);margin-bottom:4px}
+.empty-sub{font-size:12px;color:var(--muted)}
+
+.r-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden}
+.r-head{padding:9px 12px;background:#fff;border-bottom:1px solid var(--border);font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted)}
+.r-body{padding:10px 12px}
+.r-row{display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #f0f3fa}
+.r-row:last-child{border-bottom:none}
+.r-lbl{font-size:10px;color:var(--muted)}
+.r-val{font-size:11px;font-weight:600;color:var(--navy)}
+.ag-row{display:flex;align-items:center;gap:7px;padding:5px 8px;border-radius:6px;margin-bottom:4px;font-size:11px;font-weight:500;border:1px solid;transition:all 0.2s}
+.ag-wait{background:#f4f6fb;color:#94a3b8;border-color:#e2e8f0}
+.ag-active{background:#eef1fa;color:var(--navy);border-color:#c5ceea}
+.ag-done{background:#e6f5f1;color:var(--success);border-color:#b5ddd5}
+.ag-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.ag-wait .ag-dot{background:#b0b8cc}
+.ag-active .ag-dot{background:var(--navy);animation:pulse 0.8s infinite}
+.ag-done .ag-dot{background:var(--success)}
+.hist-item{display:flex;align-items:flex-start;gap:7px;padding:6px 0;border-bottom:1px solid #f0f3fa;cursor:pointer}
+.hist-item:last-child{border-bottom:none}
+.hist-item:hover .hist-name{color:var(--navy);text-decoration:underline}
+.hist-name{font-size:11px;font-weight:500;color:#4a5580;flex:1;line-height:1.35}
+.hist-time{font-size:9px;color:var(--muted);flex-shrink:0}
+
+.toast{position:fixed;bottom:16px;right:16px;background:var(--navy);color:#fff;padding:8px 14px;border-radius:8px;font-size:12px;font-weight:500;opacity:0;transform:translateY(6px);transition:all 0.2s;z-index:9999;pointer-events:none;box-shadow:0 4px 16px rgba(26,40,85,0.3)}
+.toast.show{opacity:1;transform:translateY(0)}
+.toast.ok{background:var(--success)}
+</style>
+</head>
+<body>
+
+<!-- SETUP SCREEN -->
+<div class="setup-screen" id="setupScreen">
+  <div class="setup-card">
+    <div class="setup-logo">
+      <img src="assets/icon.png" style="width:40px;height:40px;border-radius:9px;object-fit:contain" alt="">
+      <span class="setup-wordmark">comply<em>first</em></span>
+    </div>
+    <h2>Connect to Ollama</h2>
+    <p>ComplyFirst uses Ollama to generate documents free, on your Mac. Complete these steps once.</p>
+    <div class="setup-step">
+      <div class="step-num">1</div>
+      <div>
+        <div class="step-title">Install Ollama</div>
+        <div class="step-desc">Go to <strong style="color:#41CFBA">ollama.com</strong>, download for Mac, open it. You will see a llama icon in your menu bar.</div>
+      </div>
+    </div>
+    <div class="setup-step">
+      <div class="step-num">2</div>
+      <div>
+        <div class="step-title">Download the AI model (once only)</div>
+        <div class="step-desc">Open Terminal and run:</div>
+        <div class="step-code">ollama pull llama3.2</div>
+      </div>
+    </div>
+    <div class="setup-step">
+      <div class="step-num">3</div>
+      <div>
+        <div class="step-title">Select model and connect</div>
+        <select class="model-select" id="modelSelect">
+          <option value="llama3.2">llama3.2 (recommended)</option>
+          <option value="llama3.1">llama3.1</option>
+          <option value="llama3">llama3</option>
+          <option value="mistral">mistral</option>
+          <option value="gemma2">gemma2</option>
+          <option value="phi3">phi3</option>
+        </select>
+      </div>
+    </div>
+    <div class="diag" id="diagBox"></div>
+    <div class="dbg" id="dbgBox"></div>
+    <button class="connect-btn" id="connectBtn">Connect to Ollama</button>
+    <button class="skip-btn" id="skipBtn">Skip for now</button>
+  </div>
+</div>
+
+<!-- TITLEBAR -->
+<div class="titlebar">
+  <div class="tb-logo">
+    <img src="assets/icon.png" style="width:22px;height:22px;border-radius:5px;object-fit:contain" alt="">
+    <span class="tb-wordmark">comply<em>first</em></span>
+  </div>
+  <div class="tb-sep"></div>
+  <span class="tb-title">Document Intelligence</span>
+  <div class="tb-status checking" id="ollamaStatus">
+    <div class="tb-dot"></div>
+    <span id="ollamaStatusText">Checking...</span>
+  </div>
+</div>
+
+<div class="app-shell">
+  <div class="sidebar">
+    <div class="sb-brand">
+      <div class="sb-logo-row">
+        <img src="assets/icon.png" style="width:30px;height:30px;border-radius:7px;object-fit:contain;flex-shrink:0" alt="">
+        <span class="sb-wordmark">comply<em>first</em></span>
+      </div>
+      <div class="sb-url">complyfirst.co</div>
+    </div>
+    <div class="sb-section">
+      <div class="sb-label">Categories</div>
+      <button class="sb-btn" id="sb1">🚀 Onboarding</button>
+      <button class="sb-btn" id="sb2">📚 Training</button>
+      <button class="sb-btn" id="sb3">📈 Performance</button>
+      <button class="sb-btn" id="sb4">🛡️ H&amp;S</button>
+      <button class="sb-btn" id="sb5">⬆️ Upskilling</button>
+      <button class="sb-btn" id="sb6">🤝 Culture</button>
+      <button class="sb-btn" id="sb7">📋 HR Policy</button>
+      <button class="sb-btn" id="sb8">💻 IT &amp; Systems</button>
+      <button class="sb-btn" id="sb9">✅ Compliance</button>
+      <button class="sb-btn" id="sb10">🏢 Get to Know Us</button>
+      <button class="sb-btn" id="sb11">🗓️ Probation</button>
+      <button class="sb-btn" id="sb12">📝 Contracts</button>
+    </div>
+    <div class="sb-stats">
+      <div class="sb-stat"><span class="sb-stat-lbl">Generated</span><span class="sb-stat-val" id="statN">0</span></div>
+      <div class="sb-stat"><span class="sb-stat-lbl">Model</span><span class="sb-stat-val" id="statModel">-</span></div>
+      <div class="sb-stat"><span class="sb-stat-lbl">Cost</span><span class="sb-stat-val" style="color:#41CFBA">Free</span></div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="search-row">
+        <div class="search-wrap">
+          <span class="search-icon">🔍</span>
+          <input class="search-input" id="promptInput" type="text" placeholder="Describe the document - e.g. Onboarding guide for a new compliance analyst">
+        </div>
+        <button class="gen-btn" id="genBtn" disabled>✨ Generate</button>
+      </div>
+      <div class="chips">
+        <span class="chip" id="c1">New starter guide</span>
+        <span class="chip" id="c2">Onboarding checklist</span>
+        <span class="chip" id="c3">30-60-90 day plan</span>
+        <span class="chip" id="c4">Training programme</span>
+        <span class="chip" id="c5">Probation review</span>
+        <span class="chip" id="c6">H&amp;S induction</span>
+        <span class="chip" id="c7">Development plan</span>
+        <span class="chip" id="c8">Culture guide</span>
+        <span class="chip" id="c9">IT access checklist</span>
+        <span class="chip" id="c10">Employee handbook</span>
+      </div>
+    </div>
+
+    <div class="content">
+      <div class="content-left">
+        <div class="det-card">
+          <div class="card-head">👤 Document details</div>
+          <div class="fields-grid">
+            <div class="field-group"><div class="field-label">Employee Name</div><input class="field-input" id="fName" type="text" placeholder="e.g. Beckett France-Kelly"></div>
+            <div class="field-group"><div class="field-label">Job Title</div><input class="field-input" id="fRole" type="text" placeholder="e.g. Compliance Analyst"></div>
+            <div class="field-group"><div class="field-label">Department</div><input class="field-input" id="fDept" type="text" placeholder="e.g. Operations"></div>
+            <div class="field-group"><div class="field-label">Start Date</div><input class="field-input" id="fStart" type="text" placeholder="e.g. 1 July 2026"></div>
+            <div class="field-group"><div class="field-label">Manager Name</div><input class="field-input" id="fManager" type="text" placeholder="e.g. Sarah Thompson"></div>
+            <div class="field-group"><div class="field-label">Reference</div><input class="field-input" id="fRef" type="text" placeholder="e.g. TA-101"></div>
+          </div>
+        </div>
+
+        <div class="cat-section" id="catSection">
+          <div class="sec-label">Quick categories</div>
+          <div class="cat-grid" id="catGrid"></div>
+        </div>
+
+        <div class="out-card" id="outputCard" style="display:none">
+          <div class="out-header">
+            <div class="out-title-row">
+              <span>📄</span>
+              <span class="out-title" id="outputTitle">Document</span>
+              <span class="badge badge-navy" id="outputBadge">Draft</span>
+            </div>
+            <div class="out-acts">
+              <button class="act-btn" id="copyBtn">📋 Copy</button>
+              <button class="act-btn primary" id="docxBtn" disabled>⬇ Save as .docx</button>
+              <button class="act-btn" id="closeBtn">✕</button>
+            </div>
+          </div>
+          <div class="out-body" id="outputBody"></div>
+        </div>
+
+        <div class="out-card" id="emptyCard">
+          <div class="empty-state">
+            <div class="empty-icon">📄</div>
+            <div class="empty-title">Your document will appear here</div>
+            <div class="empty-sub">Fill in details above then type a prompt or click a category</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="content-right">
+        <div class="r-card">
+          <div class="r-head">Agent swarm</div>
+          <div class="r-body">
+            <div class="ag-row ag-wait" id="ag1"><div class="ag-dot"></div>Classifier</div>
+            <div class="ag-row ag-wait" id="ag2"><div class="ag-dot"></div>Structurer</div>
+            <div class="ag-row ag-wait" id="ag3"><div class="ag-dot"></div>Writer</div>
+            <div class="ag-row ag-wait" id="ag4"><div class="ag-dot"></div>Compliance</div>
+            <div class="ag-row ag-wait" id="ag5"><div class="ag-dot"></div>Formatter</div>
+          </div>
+        </div>
+        <div class="r-card">
+          <div class="r-head">Session</div>
+          <div class="r-body">
+            <div class="r-row"><span class="r-lbl">Docs generated</span><span class="r-val" id="rStatN">0</span></div>
+            <div class="r-row"><span class="r-lbl">Platform</span><span class="r-val">complyfirst.co</span></div>
+            <div class="r-row"><span class="r-lbl">Cost</span><span class="r-val" style="color:var(--success)">Free</span></div>
+            <div class="r-row"><span class="r-lbl">Model</span><span class="r-val" id="rModel">-</span></div>
+          </div>
+        </div>
+        <div class="r-card">
+          <div class="r-head">Recent</div>
+          <div class="r-body" id="histBody"><div style="font-size:11px;color:var(--muted);text-align:center;padding:8px 0">No documents yet</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// All JS in one clean block - no template literals with quotes inside strings
+
+var CATS = [
+  {name:'Onboarding',icon:'🚀',p:'New starter onboarding guide'},
+  {name:'Training',icon:'📚',p:'Employee training programme outline'},
+  {name:'Performance',icon:'📈',p:'30-60-90 day performance plan'},
+  {name:'H&S',icon:'🛡️',p:'Health and safety induction form'},
+  {name:'Upskilling',icon:'⬆️',p:'Professional development plan'},
+  {name:'Culture',icon:'🤝',p:'Company culture and values guide'},
+  {name:'HR Policy',icon:'📋',p:'HR policy document'},
+  {name:'Contracts',icon:'📝',p:'Employment terms summary'},
+  {name:'IT & Systems',icon:'💻',p:'IT access and systems checklist'},
+  {name:'Compliance',icon:'✅',p:'Compliance training record'},
+  {name:'Get to Know Us',icon:'🏢',p:'Get to know the business introduction'},
+  {name:'Probation',icon:'🗓️',p:'Probation review meeting template'}
+];
+
+var SB_PROMPTS = [
+  'New starter onboarding guide',
+  'Employee training programme outline',
+  '30-60-90 day performance plan',
+  'Health and safety induction form',
+  'Professional development plan',
+  'Company culture and values guide',
+  'HR policy document',
+  'IT access and systems checklist',
+  'Compliance training record',
+  'Get to know the business introduction',
+  'Probation review meeting template',
+  'Employment terms summary'
+];
+
+var CHIP_PROMPTS = [
+  'New starter onboarding guide',
+  'Employee onboarding checklist',
+  '30-60-90 day plan',
+  'Training programme outline',
+  'Probation review meeting',
+  'Health and safety induction',
+  'Upskilling and development plan',
+  'Company values and culture guide',
+  'IT systems access checklist',
+  'Employee handbook introduction'
+];
+
+var docCount = 0;
+var docHistory = [];
+var lastRawText = '';
+var lastParsedDoc = null;
+var selectedModel = 'llama3.2';
+var ollamaReady = false;
+
+// Wire up category cards
+var cg = document.getElementById('catGrid');
+CATS.forEach(function(c) {
+  var d = document.createElement('div');
+  d.className = 'cat-card';
+  d.innerHTML = '<div class="cat-icon">' + c.icon + '</div><div class="cat-name">' + c.name + '</div>';
+  d.addEventListener('click', function() { setP(c.p); go(); });
+  cg.appendChild(d);
+});
+
+// Wire up sidebar buttons
+for (var i = 1; i <= 12; i++) {
+  (function(idx) {
+    var btn = document.getElementById('sb' + idx);
+    if (btn) btn.addEventListener('click', function() { setAndGo(SB_PROMPTS[idx-1]); });
+  })(i);
+}
+
+// Wire up chips
+for (var j = 1; j <= 10; j++) {
+  (function(idx) {
+    var chip = document.getElementById('c' + idx);
+    if (chip) chip.addEventListener('click', function() { setP(CHIP_PROMPTS[idx-1]); });
+  })(j);
+}
+
+// Wire up main buttons
+document.getElementById('connectBtn').addEventListener('click', connectOllama);
+document.getElementById('skipBtn').addEventListener('click', function() {
+  document.getElementById('setupScreen').classList.add('hidden');
+});
+document.getElementById('genBtn').addEventListener('click', go);
+document.getElementById('copyBtn').addEventListener('click', copyText);
+document.getElementById('docxBtn').addEventListener('click', downloadDocx);
+document.getElementById('closeBtn').addEventListener('click', closeOutput);
+document.getElementById('promptInput').addEventListener('input', function() {
+  document.getElementById('genBtn').disabled = !ollamaReady || this.value.trim().length < 3;
+});
+document.getElementById('promptInput').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') go();
+});
+
+function setP(t) {
+  document.getElementById('promptInput').value = t;
+  document.getElementById('genBtn').disabled = !ollamaReady || t.trim().length < 3;
+  document.getElementById('promptInput').focus();
+}
+function setAndGo(t) { setP(t); go(); }
+
+function showToast(msg, type) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast' + (type ? ' ' + type : '') + ' show';
+  setTimeout(function() { t.classList.remove('show'); }, 2800);
+}
+
+function getDet() {
+  return {
+    name:    document.getElementById('fName').value.trim()    || '[Employee Name]',
+    role:    document.getElementById('fRole').value.trim()    || '[Job Title]',
+    dept:    document.getElementById('fDept').value.trim()    || '[Department]',
+    start:   document.getElementById('fStart').value.trim()   || '[Start Date]',
+    manager: document.getElementById('fManager').value.trim() || '[Manager Name]',
+    ref:     document.getElementById('fRef').value.trim()     || ('TA-' + Math.floor(Math.random()*900+100))
+  };
+}
+
+function setAgent(id, state) { document.getElementById(id).className = 'ag-row ag-' + state; }
+function resetAgents() { ['ag1','ag2','ag3','ag4','ag5'].forEach(function(id) { setAgent(id,'wait'); }); }
+function animateAgents() {
+  var seq = [{id:'ag1',ms:500},{id:'ag2',ms:800},{id:'ag3',ms:3000},{id:'ag4',ms:700},{id:'ag5',ms:500}];
+  var t = 200;
+  seq.forEach(function(s) {
+    setTimeout(function() { setAgent(s.id,'active'); }, t);
+    t += s.ms;
+    (function(dt){ setTimeout(function() { setAgent(s.id,'done'); }, dt); })(t);
+  });
+}
+
+function setStatus(state, text) {
+  document.getElementById('ollamaStatus').className = 'tb-status ' + state;
+  document.getElementById('ollamaStatusText').textContent = text;
+}
+
+function showDiag(msg, isErr) {
+  var d = document.getElementById('diagBox');
+  d.className = 'diag ' + (isErr ? 'err' : 'ok');
+  d.innerHTML = msg;
+  d.style.display = 'block';
+}
+
+function dbg(msg) {
+  var d = document.getElementById('dbgBox');
+  d.style.display = 'block';
+  d.innerHTML += msg + '<br>';
+  d.scrollTop = d.scrollHeight;
+}
+
+async function connectOllama() {
+  selectedModel = document.getElementById('modelSelect').value;
+  var btn = document.getElementById('connectBtn');
+  btn.textContent = 'Checking Ollama...';
+  btn.disabled = true;
+  document.getElementById('dbgBox').innerHTML = '';
+
+  dbg('Clicked connect. Model: ' + selectedModel);
+
+  try {
+    dbg('Calling checkOllama...');
+    var result = await window.electronAPI.checkOllama();
+    dbg('Result: ' + JSON.stringify(result));
+
+    if (!result.running) {
+      showDiag('Cannot reach Ollama. Make sure the Ollama app is open - look for the llama icon in your menu bar at the top of your screen. Error: ' + (result.error || 'connection refused'), true);
+      btn.textContent = 'Try Again';
+      btn.disabled = false;
+      return;
+    }
+
+    dbg('Ollama running. Checking model...');
+    var mr = await window.electronAPI.checkModel(selectedModel);
+    dbg('Model result: ' + JSON.stringify(mr));
+
+    var allModels = mr.models || [];
+    var base = selectedModel.replace(':latest','').toLowerCase();
+    var found = allModels.some(function(m) {
+      var mb = m.replace(':latest','').toLowerCase();
+      return mb === base || mb.startsWith(base) || base.startsWith(mb);
+    });
+
+    if (!found && !mr.found) {
+      var avail = allModels.length > 0 ? ' You have: ' + allModels.join(', ') : '';
+      showDiag('Model ' + selectedModel + ' not downloaded yet. Open Terminal and run: ollama pull ' + selectedModel + avail, true);
+      btn.textContent = 'Try Again';
+      btn.disabled = false;
+      return;
+    }
+
+    dbg('All good! Connecting...');
+    ollamaReady = true;
+    setStatus('ok', 'Ollama ready - ' + selectedModel);
+    document.getElementById('statModel').textContent = selectedModel;
+    document.getElementById('rModel').textContent = selectedModel;
+    document.getElementById('genBtn').disabled = document.getElementById('promptInput').value.trim().length < 3;
+    showDiag('Connected! Ollama is running with ' + selectedModel, false);
+    btn.textContent = 'Connected!';
+    btn.disabled = false;
+    setTimeout(function() {
+      document.getElementById('setupScreen').classList.add('hidden');
+    }, 800);
+
+  } catch(e) {
+    dbg('ERROR: ' + e.message);
+    showDiag('Error: ' + e.message + '. Make sure Ollama is open and try again.', true);
+    btn.textContent = 'Try Again';
+    btn.disabled = false;
+  }
+}
+
+// Auto-check on load
+document.addEventListener('DOMContentLoaded', function() {
+  window.electronAPI.checkOllama().then(function(result) {
+    if (result.running && result.models && result.models.length > 0) {
+      var preferred = ['llama3.2','llama3.1','llama3','mistral','gemma2','phi3'];
+      for (var i = 0; i < preferred.length; i++) {
+        var p = preferred[i];
+        if (result.models.some(function(m) { return m.toLowerCase().indexOf(p) !== -1; })) {
+          selectedModel = p;
+          document.getElementById('modelSelect').value = p;
+          break;
+        }
+      }
+      ollamaReady = true;
+      setStatus('ok', 'Ollama ready - ' + selectedModel);
+      document.getElementById('statModel').textContent = selectedModel;
+      document.getElementById('rModel').textContent = selectedModel;
+      document.getElementById('setupScreen').classList.add('hidden');
+    } else {
+      setStatus('err', 'Ollama not connected');
+    }
+  }).catch(function() {
+    setStatus('err', 'Ollama not connected');
+  });
+});
+
+async function go() {
+  var prompt = document.getElementById('promptInput').value.trim();
+  if (prompt.length < 3 || !ollamaReady) return;
+  var det = getDet();
+  var today = new Date().toLocaleDateString('en-GB', {day:'numeric',month:'long',year:'numeric'});
+
+  document.getElementById('catSection').style.display = 'none';
+  document.getElementById('emptyCard').style.display = 'none';
+  document.getElementById('outputCard').style.display = '';
+  document.getElementById('outputTitle').textContent = 'Generating...';
+  document.getElementById('outputBadge').textContent = 'In progress';
+  document.getElementById('outputBadge').className = 'badge badge-navy';
+  document.getElementById('docxBtn').disabled = true;
+  document.getElementById('outputBody').innerHTML = '<div class="loading-wrap"><div class="spinner"></div><div class="loading-msg">Agent swarm generating your document...</div><div class="loading-sub">Running locally on your Mac - Free - Private<br>This may take 20-40 seconds</div></div>';
+  resetAgents();
+  animateAgents();
+
+  var sys = 'You are a UK business document generator for ComplyFirst (complyfirst.co).\n\nEmployee: ' + det.name + ' | Role: ' + det.role + ' | Dept: ' + det.dept + ' | Start: ' + det.start + ' | Manager: ' + det.manager + ' | Ref: ' + det.ref + ' | Date: ' + today + '\n\nWrite a complete professional document. Use EXACTLY this format:\n\nDOC_TITLE: title\nDOC_TYPE: Guide\n---\n[SECTION: Section Name]\nParagraph text here.\n\n[ ] Checklist item (for checklists)\n\n| Col1 | Col2 |\n|------|------|\n| data | data | (for tables)\n\n[SIGNATURE_BLOCK]\nEmployee: _____  Date: _____\nManager: _____  Date: _____\n[/SIGNATURE_BLOCK]\n\n[CONFIDENTIAL]\n\nRules: British English. Use ' + det.name + ' by name. 4-5 sections. Practical real content.';
+
+  try {
+    var result = await window.electronAPI.callOllama({
+      system: sys,
+      userMessage: 'Generate a document for: ' + prompt,
+      model: selectedModel
+    });
+
+    if (!result.success) {
+      document.getElementById('outputBody').innerHTML = '<div style="padding:28px;text-align:center"><div style="font-size:14px;font-weight:700;color:#c0392b;margin-bottom:8px">Generation failed</div><div style="font-size:13px;color:#6b7a99;line-height:1.6">' + result.error + '</div><div style="margin-top:14px;font-size:12px;color:#b0b8cc">Make sure Ollama is still running (llama icon in menu bar) and try again.</div></div>';
+      document.getElementById('outputTitle').textContent = 'Error';
+      document.getElementById('outputBadge').textContent = 'Failed';
+      resetAgents();
+      return;
+    }
+
+    lastRawText = result.text;
+    lastParsedDoc = parseDoc(result.text);
+    renderDoc(lastParsedDoc, det, today);
+    docCount++;
+    document.getElementById('statN').textContent = docCount;
+    document.getElementById('rStatN').textContent = docCount;
+    document.getElementById('docxBtn').disabled = false;
+    addHistory(prompt, result.text, det, today);
+
+  } catch(e) {
+    document.getElementById('outputBody').innerHTML = '<div style="padding:28px;text-align:center"><div style="font-size:14px;font-weight:700;color:#c0392b">Error: ' + e.message + '</div></div>';
+    resetAgents();
+  }
+}
+
+function parseDoc(raw) {
+  var lines = raw.split('\n');
+  var title = 'Document', type = 'Document', bodyLines = [], headerDone = false;
+  for (var i = 0; i < lines.length; i++) {
+    var l = lines[i];
+    if (l.indexOf('DOC_TITLE:') === 0) { title = l.replace('DOC_TITLE:', '').trim(); continue; }
+    if (l.indexOf('DOC_TYPE:') === 0)  { type  = l.replace('DOC_TYPE:', '').trim();  continue; }
+    if (l === '---') { headerDone = true; continue; }
+    if (headerDone) bodyLines.push(l);
+  }
+  var sections = [], cur = null, tbl = [], inSig = false, sigLines = [];
+
+  function flushTbl() {
+    if (!tbl.length || !cur) return;
+    var rows = tbl.filter(function(r,i) { return !(i===1 && r.replace(/[\s\-|]/g,'') === ''); })
+      .map(function(r) { return r.split('|').filter(function(c,i,a) { return i>0 && i<a.length-1; }).map(function(c) { return c.trim(); }); });
+    cur.items.push({type:'table',rows:rows});
+    tbl = [];
+  }
+
+  for (var j = 0; j < bodyLines.length; j++) {
+    var l = bodyLines[j];
+    if (l.trim() === '[CONFIDENTIAL]') continue;
+    if (l.trim() === '[SIGNATURE_BLOCK]') { inSig = true; sigLines = []; continue; }
+    if (l.trim() === '[/SIGNATURE_BLOCK]') { inSig = false; if(cur) cur.items.push({type:'signature',lines:sigLines}); continue; }
+    if (inSig) { if(l.trim()) sigLines.push(l.trim()); continue; }
+    if (l.trim().charAt(0) === '|') { tbl.push(l.trim()); continue; }
+    else if (tbl.length) flushTbl();
+
+    if (l.trim().indexOf('[SECTION:') === 0) {
+      if (cur) sections.push(cur);
+      cur = {heading: l.replace('[SECTION:','').replace(']','').trim(), items:[]};
+    } else if (/^\[\s?\]/.test(l.trim())) {
+      if (!cur) cur = {heading:'', items:[]};
+      cur.items.push({type:'checkbox', text:l.replace(/^\[\s?\]\s*/,'').trim()});
+    } else if (l.trim().charAt(0) === '#') {
+      if (cur) sections.push(cur);
+      cur = {heading: l.replace(/^#+\s*/,'').trim(), items:[]};
+    } else if (l.trim()) {
+      if (!cur) cur = {heading:'', items:[]};
+      cur.items.push({type:'paragraph', text:l.trim()});
+    }
+  }
+  if (tbl.length && cur) flushTbl();
+  if (cur) sections.push(cur);
+  return {title:title, type:type, sections:sections};
+}
+
+function renderDoc(parsed, det, today) {
+  document.getElementById('outputTitle').textContent = parsed.title;
+  document.getElementById('outputBadge').textContent = parsed.type;
+  document.getElementById('outputBadge').className = 'badge badge-green';
+
+  var html = '<div>';
+  html += '<div class="doc-cover">';
+  html += '<div class="doc-top-meta"><span>' + today + '</span><div class="line"></div><span>JIRA: ' + det.ref + '</span></div>';
+  html += '<div class="doc-logo-row"><img src="assets/icon.png" style="width:22px;height:22px;border-radius:5px;object-fit:contain" alt=""><span class="doc-wordmark">comply<em>first</em></span></div>';
+  html += '<div class="doc-welcome">Welcome to Complyfirst</div>';
+  html += '<div class="doc-main-title">' + parsed.title + '</div>';
+  html += '<div class="doc-name-tag">' + det.name + '</div>';
+  html += '<div class="doc-bottom-meta"><span>Complyfirst Ltd</span><div class="line"></div><span>Confidential</span></div>';
+  html += '</div>';
+  html += '<div class="doc-body">';
+
+  for (var s = 0; s < parsed.sections.length; s++) {
+    var sec = parsed.sections[s];
+    if (sec.heading) html += '<div class="doc-sec-head">' + sec.heading + '</div>';
+    for (var k = 0; k < sec.items.length; k++) {
+      var item = sec.items[k];
+      if (item.type === 'paragraph') {
+        html += '<p>' + item.text + '</p>';
+      } else if (item.type === 'checkbox') {
+        html += '<div class="doc-check-row"><div class="doc-checkbox"></div><span>' + item.text + '</span></div>';
+      } else if (item.type === 'table' && item.rows.length) {
+        html += '<table class="doc-table">';
+        for (var r = 0; r < item.rows.length; r++) {
+          html += '<tr>';
+          for (var c = 0; c < item.rows[r].length; c++) {
+            html += r === 0 ? '<th>' + item.rows[r][c] + '</th>' : '<td>' + item.rows[r][c] + '</td>';
+          }
+          html += '</tr>';
+        }
+        html += '</table>';
+      } else if (item.type === 'signature') {
+        html += '<div class="doc-sign-area">';
+        for (var sl = 0; sl < item.lines.length; sl++) {
+          var parts = item.lines[sl].split(/\s{2,}/).filter(function(p) { return p.trim(); });
+          for (var p = 0; p < parts.length; p++) {
+            html += '<div class="doc-sign-block"><div class="doc-sign-line"></div><div class="doc-sign-label">' + parts[p] + '</div></div>';
+          }
+        }
+        html += '</div>';
+      }
+    }
+  }
+  html += '<div class="doc-confidential">Complyfirst Ltd - Confidential - complyfirst.co</div>';
+  html += '</div></div>';
+  document.getElementById('outputBody').innerHTML = html;
+  document.getElementById('catSection').style.display = '';
+}
+
+async function downloadDocx() {
+  if (!lastParsedDoc) return;
+  var det = getDet();
+  var today = new Date().toLocaleDateString('en-GB', {day:'numeric',month:'long',year:'numeric'});
+  var btn = document.getElementById('docxBtn');
+  btn.textContent = 'Building...'; btn.disabled = true;
+  try {
+    var r = await window.electronAPI.generateDocx({title:lastParsedDoc.title, type:lastParsedDoc.type, det:det, sections:lastParsedDoc.sections, ref:det.ref, date:today});
+    if (!r.success) throw new Error(r.error || 'Build failed');
+    var fname = lastParsedDoc.title.replace(/[^a-z0-9]/gi,'_').toLowerCase() + '.docx';
+    var sr = await window.electronAPI.saveDocx({buffer:r.buffer, filename:fname});
+    if (sr.success) showToast('Saved: ' + sr.filePath.split('/').pop(), 'ok');
+  } catch(e) { showToast('Error: ' + e.message); }
+  finally { btn.textContent = 'Save as .docx'; btn.disabled = false; }
+}
+
+function copyText() {
+  if (!lastRawText) return;
+  navigator.clipboard.writeText(lastRawText).then(function() { showToast('Copied'); });
+}
+
+function closeOutput() {
+  document.getElementById('outputCard').style.display = 'none';
+  document.getElementById('emptyCard').style.display = '';
+  document.getElementById('catSection').style.display = '';
+  resetAgents();
+}
+
+function addHistory(prompt, raw, det, today) {
+  var short = prompt.length > 34 ? prompt.slice(0,34) + '...' : prompt;
+  var now = new Date().toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit'});
+  docHistory.unshift({prompt:prompt, short:short, time:now, raw:raw, det:det, today:today});
+  var hb = document.getElementById('histBody');
+  var htm = '';
+  for (var i = 0; i < Math.min(docHistory.length, 6); i++) {
+    htm += '<div class="hist-item" data-idx="' + i + '"><span style="font-size:13px;flex-shrink:0">📄</span><span class="hist-name">' + docHistory[i].short + '</span><span class="hist-time">' + docHistory[i].time + '</span></div>';
+  }
+  hb.innerHTML = htm;
+  hb.querySelectorAll('.hist-item').forEach(function(el) {
+    el.addEventListener('click', function() { restoreDoc(parseInt(this.dataset.idx)); });
+  });
+}
+
+function restoreDoc(i) {
+  var h = docHistory[i]; if(!h) return;
+  lastRawText = h.raw; lastParsedDoc = parseDoc(h.raw);
+  renderDoc(lastParsedDoc, h.det, h.today);
+  document.getElementById('outputCard').style.display = '';
+  document.getElementById('emptyCard').style.display = 'none';
+  document.getElementById('docxBtn').disabled = false;
+}
+</script>
+</body>
+</html>
