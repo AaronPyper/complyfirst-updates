@@ -166,7 +166,7 @@ ipcMain.handle('call-ollama', async (event, { system, userMessage, model }) => {
       model: model || 'llama3.2',
       prompt: system + '\n\nGenerate a document for: ' + userMessage + '\n\nDocument:',
       stream: false,
-      options: { temperature: 0.7, num_predict: 3000, num_ctx: 8192 }
+      options: { temperature: 0.7, num_predict: 4000, num_ctx: 8192 }
     });
 
     const options = {
@@ -203,8 +203,8 @@ ipcMain.handle('call-ollama', async (event, { system, userMessage, model }) => {
     });
 
     req.on('error', (e) => done({ success: false, error: 'Cannot connect to Ollama: ' + e.message }));
-    req.on('timeout', () => { req.destroy(); done({ success: false, error: 'Timed out after 3 minutes. Ollama may still be loading the model — wait 30 seconds and try again.' }); });
-    req.setTimeout(180000);
+    req.on('timeout', () => { req.destroy(); done({ success: false, error: 'Timed out after 4 minutes. Ollama may still be loading the model — wait 30 seconds and try again.' }); });
+    req.setTimeout(240000);
     req.write(body);
     req.end();
   });
@@ -229,74 +229,170 @@ ipcMain.handle('save-docx', async (event, { buffer, filename }) => {
 ipcMain.handle('generate-docx', async (event, { title, type, det, sections, ref, date }) => {
   try {
     const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
-            AlignmentType, BorderStyle, WidthType, ShadingType, ImageRun } = require('docx');
-    const fs = require('fs');
-    const path = require('path');
-    const iconPath = path.join(__dirname, 'assets', 'icon.png');
-    const iconData = fs.existsSync(iconPath) ? fs.readFileSync(iconPath) : null;
+            AlignmentType, BorderStyle, WidthType, ShadingType, ImageRun,
+            HorizontalPositionAlign, VerticalPositionAlign, TextWrappingType } = require('docx');
+    const fsLocal = require('fs');
+    const pathLocal = require('path');
+    const iconPath = pathLocal.join(__dirname, 'assets', 'icon.png');
+    const iconData = fsLocal.existsSync(iconPath) ? fsLocal.readFileSync(iconPath) : null;
 
-    const NAVY = '182457', TEAL = '41CFBA', LIGHT = 'eef1fa', BORDER_COLOR = 'dde3f0';
-    const border = { style: BorderStyle.SINGLE, size: 1, color: BORDER_COLOR };
-    const borders = { top: border, bottom: border, left: border, right: border };
+    // Exact brand colours matching the app preview
+    const NAVY      = '182457';  // --navy
+    const NAVY_TEXT = '2a3350';  // body text
+    const TEAL      = '41CFBA';  // --teal (section underline)
+    const LIGHT     = 'eef1fa';  // alternating table rows
+    const MUTED     = '6b7a99';  // muted text
+    const BORDER_C  = 'dde3f0';  // borders
+    const WHITE     = 'FFFFFF';
+
+    const thinBorder  = { style: BorderStyle.SINGLE, size: 1,  color: BORDER_C };
+    const cellBorders = { top: thinBorder, bottom: thinBorder, left: thinBorder, right: thinBorder };
+
     const children = [];
 
-    // Build header paragraph with icon + wordmark
-    const headerChildren = [];
+    // ── COVER HEADER (navy background table matching app preview) ──
+    const coverTopMeta = new TableRow({
+      children: [
+        new TableCell({
+          borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } },
+          shading: { fill: NAVY, type: ShadingType.CLEAR },
+          margins: { top: 120, bottom: 60, left: 200, right: 200 },
+          children: [new Paragraph({ children: [new TextRun({ text: date.toUpperCase(), size: 16, font: 'Arial', color: 'AABBCC', bold: false })] })]
+        }),
+        new TableCell({
+          borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } },
+          shading: { fill: NAVY, type: ShadingType.CLEAR },
+          margins: { top: 120, bottom: 60, left: 200, right: 200 },
+          children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: 'JIRA: ' + ref, size: 16, font: 'Arial', color: 'AABBCC' })] })]
+        })
+      ]
+    });
+
+    const logoChildren = [];
     if (iconData) {
-      headerChildren.push(new ImageRun({
-        data: iconData, type: 'png',
-        transformation: { width: 36, height: 36 }
-      }));
-      headerChildren.push(new TextRun({ text: '  ', size: 52 }));
+      logoChildren.push(new ImageRun({ data: iconData, type: 'png', transformation: { width: 28, height: 28 } }));
+      logoChildren.push(new TextRun({ text: '  ', size: 28 }));
     }
-    headerChildren.push(new TextRun({ text: 'comply', size: 52, bold: true, font: 'Arial', color: '182457' }));
-    headerChildren.push(new TextRun({ text: 'first', size: 52, bold: true, font: 'Georgia', color: '182457', italics: true }));
+    logoChildren.push(new TextRun({ text: 'comply', size: 28, bold: true, font: 'Arial', color: WHITE }));
+    logoChildren.push(new TextRun({ text: 'first', size: 28, bold: true, font: 'Georgia', color: WHITE, italics: true }));
 
-    children.push(
-      new Paragraph({ children: headerChildren, spacing: { before: 0, after: 80 } }),
-      new Paragraph({ children: [
-        new TextRun({ text: 'complyfirst.co  ·  Document Intelligence Platform', size: 18, color: '5a6b8a', font: 'Arial' })
-      ], spacing: { before: 0, after: 280 } }),
-      new Paragraph({ children: [
-        new TextRun({ text: title, size: 56, bold: true, font: 'Georgia', color: NAVY })
-      ], spacing: { before: 0, after: 100 } }),
-      new Paragraph({ children: [
-        new TextRun({ text: det.name, size: 30, bold: true, font: 'Arial', color: NAVY })
-      ], spacing: { before: 0, after: 60 } }),
-      new Paragraph({ children: [
-        new TextRun({ text: `${det.role}  ·  ${det.dept}`, size: 22, font: 'Arial', color: '5a6b8a' })
-      ], spacing: { before: 0, after: 50 } }),
-      new Paragraph({ children: [
-        new TextRun({ text: `Start Date: ${det.start}  ·  Manager: ${det.manager}  ·  Ref: ${ref}`, size: 20, font: 'Arial', color: '5a6b8a' })
-      ], spacing: { before: 0, after: 50 } }),
-      new Paragraph({ children: [
-        new TextRun({ text: `Date: ${date}  ·  Type: ${type}`, size: 20, font: 'Arial', color: '9aa0b8' })
-      ], spacing: { before: 0, after: 160 },
-        border: { bottom: { style: BorderStyle.SINGLE, size: 12, color: NAVY, space: 1 } } })
-    );
+    const coverLogoRow = new TableRow({
+      children: [new TableCell({
+        columnSpan: 2,
+        borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } },
+        shading: { fill: NAVY, type: ShadingType.CLEAR },
+        margins: { top: 60, bottom: 80, left: 200, right: 200 },
+        children: [new Paragraph({ children: logoChildren })]
+      })]
+    });
 
+    const coverWelcomeRow = new TableRow({
+      children: [new TableCell({
+        columnSpan: 2,
+        borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } },
+        shading: { fill: NAVY, type: ShadingType.CLEAR },
+        margins: { top: 0, bottom: 40, left: 200, right: 200 },
+        children: [new Paragraph({ children: [new TextRun({ text: 'WELCOME TO COMPLYFIRST', size: 16, font: 'Arial', color: 'AABBCC', allCaps: true })] })]
+      })]
+    });
+
+    const coverTitleRow = new TableRow({
+      children: [new TableCell({
+        columnSpan: 2,
+        borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } },
+        shading: { fill: NAVY, type: ShadingType.CLEAR },
+        margins: { top: 0, bottom: 100, left: 200, right: 200 },
+        children: [new Paragraph({ children: [new TextRun({ text: title, size: 52, bold: true, font: 'Georgia', color: WHITE })] })]
+      })]
+    });
+
+    const coverNameRow = new TableRow({
+      children: [new TableCell({
+        columnSpan: 2,
+        borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } },
+        shading: { fill: NAVY, type: ShadingType.CLEAR },
+        margins: { top: 0, bottom: 120, left: 200, right: 200 },
+        children: [new Paragraph({ children: [
+          new TextRun({ text: det.name, size: 28, bold: true, font: 'Arial', color: WHITE }),
+          new TextRun({ text: '  ·  ' + det.role + '  ·  ' + det.dept, size: 22, font: 'Arial', color: 'AABBCC' })
+        ]})]
+      })]
+    });
+
+    const dividerLine = { style: BorderStyle.SINGLE, size: 2, color: '2d4070', space: 1 };
+    const coverBottomRow = new TableRow({
+      children: [
+        new TableCell({
+          borders: { top: dividerLine, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } },
+          shading: { fill: NAVY, type: ShadingType.CLEAR },
+          margins: { top: 80, bottom: 120, left: 200, right: 200 },
+          children: [new Paragraph({ children: [new TextRun({ text: 'COMPLYFIRST LTD', size: 14, font: 'Arial', color: 'AABBCC', allCaps: true })] })]
+        }),
+        new TableCell({
+          borders: { top: dividerLine, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } },
+          shading: { fill: NAVY, type: ShadingType.CLEAR },
+          margins: { top: 80, bottom: 120, left: 200, right: 200 },
+          children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: 'CONFIDENTIAL', size: 14, font: 'Arial', color: 'AABBCC', allCaps: true })] })]
+        })
+      ]
+    });
+
+    // Cover table
+    children.push(new Table({
+      width: { size: 9360, type: WidthType.DXA },
+      columnWidths: [4680, 4680],
+      rows: [coverTopMeta, coverLogoRow, coverWelcomeRow, coverTitleRow, coverNameRow, coverBottomRow]
+    }));
+
+    // Spacing after cover
+    children.push(new Paragraph({ children: [], spacing: { before: 320, after: 0 } }));
+
+    // Sub-header with role details
+    children.push(new Paragraph({
+      children: [
+        new TextRun({ text: 'Start Date: ', size: 20, font: 'Arial', color: MUTED, bold: true }),
+        new TextRun({ text: det.start + '   ', size: 20, font: 'Arial', color: NAVY_TEXT }),
+        new TextRun({ text: 'Manager: ', size: 20, font: 'Arial', color: MUTED, bold: true }),
+        new TextRun({ text: det.manager + '   ', size: 20, font: 'Arial', color: NAVY_TEXT }),
+        new TextRun({ text: 'Type: ', size: 20, font: 'Arial', color: MUTED, bold: true }),
+        new TextRun({ text: type, size: 20, font: 'Arial', color: NAVY_TEXT }),
+      ],
+      spacing: { before: 0, after: 240 },
+      border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: BORDER_C, space: 1 } }
+    }));
+
+    // ── DOCUMENT BODY SECTIONS ──
     for (const sec of sections) {
       if (sec.heading) {
+        // Section heading matching app preview: uppercase, navy text, teal underline
         children.push(new Paragraph({
-          children: [new TextRun({ text: sec.heading.toUpperCase(), size: 20, bold: true, font: 'Arial', color: NAVY })],
-          spacing: { before: 280, after: 80 },
-          border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: '41CFBA', space: 1 } }
+          children: [new TextRun({
+            text: sec.heading.toUpperCase(),
+            size: 20, bold: true, font: 'Arial', color: NAVY, allCaps: true
+          })],
+          spacing: { before: 320, after: 100 },
+          border: { bottom: { style: BorderStyle.SINGLE, size: 8, color: TEAL, space: 1 } }
         }));
       }
+
       for (const item of sec.items) {
         if (item.type === 'paragraph') {
           children.push(new Paragraph({
-            children: [new TextRun({ text: item.text, size: 22, font: 'Arial', color: '2a3350' })],
-            spacing: { before: 50, after: 50 }
+            children: [new TextRun({ text: item.text, size: 22, font: 'Arial', color: NAVY_TEXT })],
+            spacing: { before: 60, after: 60 },
+            indent: { left: 0 }
           }));
+
         } else if (item.type === 'checkbox') {
           children.push(new Paragraph({
             children: [
               new TextRun({ text: '\u2610  ', size: 22, font: 'Arial', color: NAVY }),
-              new TextRun({ text: item.text, size: 22, font: 'Arial', color: '2a3350' })
+              new TextRun({ text: item.text, size: 22, font: 'Arial', color: NAVY_TEXT })
             ],
-            spacing: { before: 40, after: 40 }, indent: { left: 360 }
+            spacing: { before: 50, after: 50 },
+            indent: { left: 360 }
           }));
+
         } else if (item.type === 'table' && item.rows && item.rows.length > 0) {
           const colCount = item.rows[0].length || 1;
           const totalW = 9000;
@@ -305,44 +401,63 @@ ipcMain.handle('generate-docx', async (event, { title, type, det, sections, ref,
             width: { size: totalW, type: WidthType.DXA },
             columnWidths: Array(colCount).fill(colW),
             rows: item.rows.map((row, ri) => new TableRow({
+              tableHeader: ri === 0,
               children: row.map(cell => new TableCell({
-                borders, width: { size: colW, type: WidthType.DXA },
-                shading: ri === 0 ? { fill: NAVY, type: ShadingType.CLEAR } : ri % 2 === 0 ? { fill: LIGHT, type: ShadingType.CLEAR } : {},
-                margins: { top: 80, bottom: 80, left: 120, right: 120 },
-                children: [new Paragraph({ children: [new TextRun({
-                  text: cell, size: 20, font: 'Arial', bold: ri === 0,
-                  color: ri === 0 ? 'FFFFFF' : '2a3350'
-                })] })]
+                borders: cellBorders,
+                width: { size: colW, type: WidthType.DXA },
+                shading: ri === 0
+                  ? { fill: NAVY, type: ShadingType.CLEAR }
+                  : ri % 2 === 0
+                    ? { fill: LIGHT, type: ShadingType.CLEAR }
+                    : { fill: WHITE, type: ShadingType.CLEAR },
+                margins: { top: 90, bottom: 90, left: 140, right: 140 },
+                children: [new Paragraph({
+                  children: [new TextRun({
+                    text: cell,
+                    size: 20,
+                    font: 'Arial',
+                    bold: ri === 0,
+                    color: ri === 0 ? WHITE : NAVY_TEXT
+                  })]
+                })]
               }))
             }))
           }));
-          children.push(new Paragraph({ children: [], spacing: { before: 80 } }));
+          children.push(new Paragraph({ children: [], spacing: { before: 120, after: 0 } }));
+
         } else if (item.type === 'signature') {
-          children.push(
-            new Paragraph({ children: [], spacing: { before: 200 }, border: { top: { style: BorderStyle.SINGLE, size: 4, color: BORDER_COLOR } } }),
-            ...item.lines.map(line => new Paragraph({
-              children: [new TextRun({ text: line, size: 20, font: 'Arial', color: '5a6b8a' })],
+          children.push(new Paragraph({ children: [], spacing: { before: 320 },
+            border: { top: { style: BorderStyle.SINGLE, size: 4, color: BORDER_C } }
+          }));
+          item.lines.forEach(line => {
+            const parts = line.split(/\s{2,}/).filter(p => p.trim());
+            children.push(new Paragraph({
+              children: parts.map(p => new TextRun({ text: p + '     ', size: 20, font: 'Arial', color: MUTED })),
               spacing: { before: 100, after: 100 }
-            }))
-          );
+            }));
+          });
         }
       }
     }
 
+    // ── FOOTER ──
     children.push(
-      new Paragraph({ children: [], spacing: { before: 280 } }),
+      new Paragraph({ children: [], spacing: { before: 400 } }),
       new Paragraph({
-        children: [new TextRun({ text: 'COMPLYFIRST LTD  ·  CONFIDENTIAL  ·  complyfirst.co', size: 16, font: 'Arial', color: '9aa0b8' })],
+        children: [new TextRun({ text: 'COMPLYFIRST LTD  ·  CONFIDENTIAL  ·  complyfirst.co', size: 16, font: 'Arial', color: MUTED, allCaps: true })],
         alignment: AlignmentType.CENTER,
-        border: { top: { style: BorderStyle.SINGLE, size: 4, color: BORDER_COLOR } },
-        spacing: { before: 100 }
+        border: { top: { style: BorderStyle.SINGLE, size: 4, color: BORDER_C } },
+        spacing: { before: 120 }
       })
     );
 
     const doc = new Document({
       styles: { default: { document: { run: { font: 'Arial', size: 22 } } } },
       sections: [{ properties: {
-        page: { size: { width: 11906, height: 16838 }, margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 } }
+        page: {
+          size: { width: 11906, height: 16838 },
+          margin: { top: 720, right: 1080, bottom: 1080, left: 1080 }
+        }
       }, children }]
     });
 
