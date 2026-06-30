@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en-GB">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -674,7 +674,7 @@ async function go() {
 
   var formatRules = 'OUTPUT FORMAT RULES - follow exactly:\nDOC_TITLE: [title]\nDOC_TYPE: [type]\n---\n[SECTION: Section Title]\nWrite full detailed paragraphs here. Be thorough and specific.\n\nFor checklists: [ ] Item with full explanation of what to do\nFor tables: | Col | Col |\n|-----|-----|\n| data | data |\nFor signatures: [SIGNATURE_BLOCK]\nEmployee Name: _______________ Date: ___________\nManager Name: _______________ Date: ___________\n[/SIGNATURE_BLOCK]\nEnd with: [CONFIDENTIAL]';
 
-  var qualityRules = 'QUALITY RULES:\n- Write at least 1000 words of real content - depth and detail matter more than brevity\n- Every section must have at least 4-6 detailed paragraphs or 10+ checklist items\n- Use ' + det.name + ' by name throughout - never write the employee\n- Reference ' + det.role + ' and ' + det.dept + ' specifically in every section\n- Include specific tools, processes, timelines, legal references and expectations\n- British English throughout\n- Be practical and actionable - tell people exactly what to do, how, and why\n- Include context and rationale for each item, not just the item itself\n- Where legal points are made, reference the specific Act, section, or Acas guidance by name\n- Add a closing note recommending the reader verify current legal position given ongoing Employment Rights Act 2025 implementation';
+  var qualityRules = 'QUALITY RULES:\n- Write at least 1000 words of real content - depth and detail matter more than brevity\n- Every section must have at least 4-6 detailed paragraphs or 10+ checklist items\n- Use ' + det.name + ' by name throughout - never write the employee\n- Reference ' + det.role + ' and ' + det.dept + ' specifically in every section\n- Include specific tools, processes, timelines, legal references and expectations\n- BRITISH ENGLISH SPELLING IS MANDATORY throughout - use organise (not organize), organisation (not organization), recognise (not recognize), programme (not program, unless referring to software), colour (not color), centre (not center), behaviour (not behavior), favour (not favor), travelling (not traveling), cancelled (not canceled), licence as a noun / license as a verb, practise as a verb / practice as a noun, defence (not defense), analyse (not analyze), summarise (not summarize), customise (not customize), prioritise (not prioritize), realise (not realize), -ise endings generally rather than -ize\n- Use British date format (DD Month YYYY) and British terminology (holiday not vacation, CV not resume, line manager not supervisor where natural)\n- Be practical and actionable - tell people exactly what to do, how, and why\n- Include context and rationale for each item, not just the item itself\n- Where legal points are made, reference the specific Act, section, or Acas guidance by name\n- Add a closing note recommending the reader verify current legal position given ongoing Employment Rights Act 2025 implementation';
 
   var sys;
 
@@ -719,19 +719,60 @@ async function go() {
       return;
     }
 
-    lastRawText = result.text;
-    lastParsedDoc = parseDoc(result.text);
+    lastRawText = ukifySpelling(result.text);
+    lastParsedDoc = parseDoc(lastRawText);
     renderDoc(lastParsedDoc, det, today);
     docCount++;
     document.getElementById('statN').textContent = docCount;
     document.getElementById('rStatN').textContent = docCount;
     document.getElementById('docxBtn').disabled = false;
-    addHistory(prompt, result.text, det, today);
+    addHistory(prompt, lastRawText, det, today);
 
   } catch(e) {
     document.getElementById('outputBody').innerHTML = '<div style="padding:28px;text-align:center"><div style="font-size:14px;font-weight:700;color:#c0392b">Error: ' + e.message + '</div></div>';
     resetAgents();
   }
+}
+
+// ── UK SPELLING CORRECTION (safety net in case the AI slips into US spelling) ──
+function applyCase(original, replacement) {
+  if (original === original.toUpperCase()) return replacement.toUpperCase();
+  if (original[0] === original[0].toUpperCase()) return replacement[0].toUpperCase() + replacement.slice(1);
+  return replacement;
+}
+function ukifySpelling(text) {
+  var fixes = [
+    [/\borganiz(e|ed|ing|ation|ations|er)\b/gi, function(m,p1){ return applyCase(m,'organis'+p1); }],
+    [/\brecogniz(e|ed|ing|es|able)\b/gi, function(m,p1){ return applyCase(m,'recognis'+p1); }],
+    [/\bcustomiz(e|ed|ing|ation)\b/gi, function(m,p1){ return applyCase(m,'customis'+p1); }],
+    [/\bprioritiz(e|ed|ing|ation)\b/gi, function(m,p1){ return applyCase(m,'prioritis'+p1); }],
+    [/\bsummariz(e|ed|ing|ation)\b/gi, function(m,p1){ return applyCase(m,'summaris'+p1); }],
+    [/\banalyz(e|ed|ing|es|er)\b/gi, function(m,p1){ return applyCase(m,'analys'+p1); }],
+    [/\brealiz(e|ed|ing|ation)\b/gi, function(m,p1){ return applyCase(m,'realis'+p1); }],
+    [/\bfinaliz(e|ed|ing|ation)\b/gi, function(m,p1){ return applyCase(m,'finalis'+p1); }],
+    [/\butiliz(e|ed|ing|ation)\b/gi, function(m,p1){ return applyCase(m,'utilis'+p1); }],
+    [/\bspecializ(e|ed|ing|ation)\b/gi, function(m,p1){ return applyCase(m,'specialis'+p1); }],
+    [/\bcolor(s|ed|ing|ful)?\b/gi, function(m,p1){ return applyCase(m,'colour'+(p1||'')); }],
+    [/\bfavor(s|ed|ing|ite|able|ites)?\b/gi, function(m,p1){ return applyCase(m,'favour'+(p1||'')); }],
+    [/\bbehavior(s|al)?\b/gi, function(m,p1){ return applyCase(m,'behaviour'+(p1||'')); }],
+    [/\bcenter(s|ed|ing)?\b/gi, function(m,p1){ return applyCase(m,'centre'+(p1||'')); }],
+    [/\bdefense(s|ive)?\b/gi, function(m,p1){ return applyCase(m,'defence'+(p1||'')); }],
+    [/\blicense(s|d)\b/gi, function(m,p1){ return applyCase(m,'licence'+p1); }],
+    [/\btraveling\b/gi, 'travelling'],
+    [/\btraveled\b/gi, 'travelled'],
+    [/\bcanceled\b/gi, 'cancelled'],
+    [/\bcanceling\b/gi, 'cancelling'],
+    [/\blabeled\b/gi, 'labelled'],
+    [/\bmodeling\b/gi, 'modelling'],
+    [/\bcatalog(s|ed|ing)?\b/gi, function(m,p1){ return applyCase(m,'catalogue'+(p1||'')); }],
+    [/\bgray\b/gi, 'grey'],
+    [/\bvacation(s)?\b/gi, function(m,p1){ return applyCase(m,'holiday'+(p1||'')); }]
+  ];
+  var result = text;
+  fixes.forEach(function(pair) {
+    result = result.replace(pair[0], pair[1]);
+  });
+  return result;
 }
 
 function parseDoc(raw) {
