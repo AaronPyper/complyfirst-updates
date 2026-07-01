@@ -1,0 +1,35 @@
+{
+  "name": "complyfirst",
+  "version": "2.0.0",
+  "description": "ComplyFirst Document Intelligence",
+  "main": "main.js",
+  "author": "ComplyFirst Ltd",
+  "scripts": {
+    "start": "electron .",
+    "build:mac": "electron-builder --mac --x64 --arm64",
+    "build:win": "electron-builder --win --x64"
+  },
+  "build": {
+    "appId": "co.complyfirst.app",
+    "productName": "ComplyFirst",
+    "directories": { "output": "dist" },
+    "files": ["main.js","preload.js","index.html","assets/**","node_modules/**"],
+    "mac": {
+      "target": [{ "target": "dmg", "arch": ["x64","arm64"] }],
+      "icon": "assets/icon.png",
+      "category": "public.app-category.business"
+    },
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "icon": "assets/icon.png"
+    }
+  },
+  "devDependencies": {
+    "electron": "^42.5.0",
+    "electron-builder": "^26.15.3"
+  },
+  "dependencies": {
+    "docx": "^9.7.1",
+    "pdfkit": "^0.15.0"
+  }
+}
